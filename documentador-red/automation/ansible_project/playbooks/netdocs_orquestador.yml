@@ -1,0 +1,72 @@
+---
+- name: 00. Preparar Entorno Local
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Crear directorio principal de backups
+      ansible.builtin.file:
+        path: "/var/www/html/documentador-red/automation/backups"
+        state: directory
+        mode: '0755'
+
+- name: 01. Aprovisionamiento SNMP y Respaldos de Red
+  hosts: all
+  gather_facts: no
+  connection: network_cli
+  become: yes
+  become_method: enable
+
+  vars:
+    ansible_network_cli_ssh_type: paramiko
+    ansible_ssh_common_args: '-o KexAlgorithms=+diffie-hellman-group1-sha1,diffie-hellman-group14-sha1,diffie-hellman-group-exchange-sha1 -o HostKeyAlgorithms=+ssh-rsa'
+    backup_root: "/var/www/html/documentador-red/automation/backups"
+
+  tasks:
+    - name: Configurar Comunidad SNMP v2c (Read-Only)
+      cisco.ios.ios_config:
+        lines:
+          - "snmp-server community {{ snmp_community | default('public', true) }} RO"
+      register: snmp_config
+      ignore_errors: yes
+
+    - name: Guardar configuracion si hubo cambios (Write Memory Universal)
+      when: snmp_config is defined
+      ansible.netcommon.cli_command:
+        command: write memory
+        prompt:
+          - '\[confirm\]'
+          - 'Overwrite the previous NVRAM'
+          - 'Destination filename'
+        answer:
+          - "\r"
+          - "\r"
+          - "\r"
+        check_all: false
+      ignore_errors: yes
+
+    - name: Crear subdirectorio de backup para el host
+      ansible.builtin.file:
+        path: "{{ backup_root }}/{{ inventory_hostname }}"
+        state: directory
+        mode: '0755'
+      delegate_to: localhost
+      vars:
+        ansible_become: false
+
+    - name: Obtener Running Config actual
+      cisco.ios.ios_command:
+        commands: show running-config
+      register: run_cfg
+      ignore_errors: yes
+
+    - name: Guardar Backup en archivo de texto
+      when: run_cfg.stdout is defined
+      ansible.builtin.copy:
+        content: "{{ run_cfg.stdout[0] }}"
+        dest: "{{ backup_root }}/{{ inventory_hostname }}/{{ inventory_hostname }}_{{ lookup('pipe', 'date +%Y-%m-%d_%H-%M-%S') }}.txt"
+      delegate_to: localhost
+      vars:
+        ansible_become: false
+
+
+

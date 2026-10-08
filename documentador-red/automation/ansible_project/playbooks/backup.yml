@@ -1,0 +1,36 @@
+---
+- name: Respaldo de Configuraciones de Red
+  hosts: all
+  gather_facts: no
+  connection: network_cli
+  become: no
+
+  vars:
+    ansible_network_cli_ssh_type: paramiko
+    ansible_ssh_common_args: '-o KexAlgorithms=+diffie-hellman-group1-sha1,diffie-hellman-group14-sha1,diffie-hellman-group-exchange-sha1 -o HostKeyAlgorithms=+ssh-rsa'
+    backup_root: "/var/www/html/documentador-red/automation/backups"
+
+  tasks:
+    - name: Asegurar que el directorio de backups existe
+      ansible.builtin.file:
+        path: "{{ backup_root }}/{{ inventory_hostname }}"
+        state: directory
+        mode: '0755'
+      delegate_to: localhost
+      vars:
+        ansible_become: false
+
+    - name: Descargar Running Config
+      cisco.ios.ios_command:
+        commands: show running-config
+      register: config_output
+      ignore_errors: yes
+
+    - name: Guardar configuración en archivo
+      when: config_output.stdout is defined
+      ansible.builtin.copy:
+        content: "{{ config_output.stdout[0] }}"
+        dest: "{{ backup_root }}/{{ inventory_hostname }}/{{ inventory_hostname }}_{{ lookup('pipe', 'date +%Y-%m-%d_%H-%M-%S') }}.txt"
+      delegate_to: localhost
+      vars:
+        ansible_become: false
