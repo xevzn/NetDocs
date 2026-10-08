@@ -4,7 +4,6 @@ require_once __DIR__ . '/../core/database.php';
 
 class Usuario {
     
-    // Obtiene solo los usuarios activos (activo = 1)
     public static function obtenerTodos() {
         try {
             $db = Database::conectar();
@@ -21,7 +20,6 @@ class Usuario {
         }
     }
 
-    // Registro con los nuevos campos de identidad
     public static function registrar($usuario, $nombre_completo, $correo, $password, $id_rol) {
         try {
             $db = Database::conectar();
@@ -42,7 +40,6 @@ class Usuario {
         }
     }
 
-    // SOFT DELETE: Cambiamos a inactivo en lugar de borrar permanentemente
     public static function suspender($id) {
         try {
             $db = Database::conectar();
@@ -74,6 +71,40 @@ class Usuario {
             return $stmt->execute();
         } catch (PDOException $e) {
             die("Error al actualizar la contraseña: " . $e->getMessage());
+        }
+    }
+
+    public static function inicializarAdminDefecto() {
+        try {
+            $db = Database::conectar();
+            
+            // Verificamos si existe al menos un usuario administrador (rol = 1)
+            $stmt = $db->query("SELECT COUNT(*) FROM usuarios WHERE id_rol = 1");
+            $existeAdmin = $stmt->fetchColumn();
+
+            if ($existeAdmin == 0) {
+                // Leemos las variables inyectadas por Docker Compose
+                $usuario = getenv('INIT_ADMIN_USER') ?: 'Admin';
+                $password = getenv('INIT_ADMIN_PASS') ?: 'AdminDocs123!';
+                $correo = getenv('INIT_ADMIN_EMAIL') ?: 'admin@netdocs.local';
+                $nombre_completo = 'Super Administrador Sistema';
+                $id_rol = 1; 
+
+                $hash = password_hash($password, PASSWORD_DEFAULT);
+
+                $stmtInsert = $db->prepare("INSERT INTO usuarios (id, usuario, nombre_completo, correo, password_hash, id_rol, activo) 
+                                            VALUES (1, :usuario, :nombre, :correo, :hash, :rol, 1)");
+                
+                $stmtInsert->bindParam(':usuario', $usuario);
+                $stmtInsert->bindParam(':nombre', $nombre_completo);
+                $stmtInsert->bindParam(':correo', $correo);
+                $stmtInsert->bindParam(':hash', $hash);
+                $stmtInsert->bindParam(':rol', $id_rol);
+                
+                $stmtInsert->execute();
+            }
+        } catch (PDOException $e) {
+            error_log("Aviso: No se pudo inicializar el admin por defecto. Detalles: " . $e->getMessage());
         }
     }
 }

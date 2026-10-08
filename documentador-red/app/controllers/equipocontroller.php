@@ -2,7 +2,8 @@
 // C:\xampp\htdocs\documentador-red\app\controllers\EquipoController.php
 
 require_once __DIR__ . '/../models/equipo.php';
-require_once __DIR__ . '/../models/log.php'; // Ya lo tenías aquí arriba, ¡perfecto!
+require_once __DIR__ . '/../models/log.php';
+require_once __DIR__ . '/../core/vault.php';
 
 class EquipoController {
     // Muestra la tabla principal con todos los equipos
@@ -65,10 +66,11 @@ class EquipoController {
 
             // 3. LÓGICA DE CIFRADO INTELIGENTE (Vault PHP)
             if ($ssh_pass !== null) {
-                $vault_master_key = "0507_netdocs_master_key_2026"; 
-                $iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length('aes-256-cbc'));
-                $encrypted = openssl_encrypt($ssh_pass, 'aes-256-cbc', $vault_master_key, 0, $iv);
-                $ssh_password_encrypted = base64_encode($encrypted . '::' . $iv);
+                $ssh_password_encrypted = vault_encrypt_credential($ssh_pass);
+                if ($ssh_password_encrypted === null) {
+                    header("Location: /documentador-red/alta-equipo?mensaje=error");
+                    exit();
+                }
             }
 
             $exito = Equipo::registrar($hostname, $marca, $modelo, $tipo, $plantilla_conexion, $ip_gestion, $ubicacion, $comentarios, $ssh_user, $ssh_password_encrypted);
@@ -129,27 +131,6 @@ class EquipoController {
         }
 
         $puertos = Equipo::obtenerPuertos($id);
-
-        // ========================================================
-        // EXTRACCIÓN SEGURA DE BÓVEDA (AES-256)
-        // ========================================================
-        $usuario_ssh = 'No configurado';
-        $password_ssh_descifrada = 'No configurada';
-
-        // Solo Administradores (1) y Técnicos (2) pueden desencriptar
-        if ($_SESSION['rol_id'] <= 2 && !empty($equipo['ssh_password_encrypted'])) {
-            $usuario_ssh = $equipo['ssh_user'] ?: 'No configurado';
-            
-            // Llave maestra (Idealmente, en un futuro muévela a un archivo config.php o .env)
-            $vault_master_key = "0507_netdocs_master_key_2026"; 
-            $decoded = base64_decode($equipo['ssh_password_encrypted']);
-            
-            // Separar el dato encriptado del Vector de Inicialización (IV)
-            if (strpos($decoded, '::') !== false) {
-                list($encrypted_data, $iv) = explode('::', $decoded);
-                $password_ssh_descifrada = openssl_decrypt($encrypted_data, 'aes-256-cbc', $vault_master_key, 0, $iv);
-            }
-        }
 
         require_once __DIR__ . '/../views/infraestructura/detalles.php';
     }
@@ -317,10 +298,11 @@ class EquipoController {
 
             // Si se ingresó una contraseña nueva, la ciframos
             if ($ssh_pass !== null) {
-                $vault_master_key = "0507_netdocs_master_key_2026"; 
-                $iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length('aes-256-cbc'));
-                $encrypted = openssl_encrypt($ssh_pass, 'aes-256-cbc', $vault_master_key, 0, $iv);
-                $ssh_password_encrypted = base64_encode($encrypted . '::' . $iv);
+                $ssh_password_encrypted = vault_encrypt_credential($ssh_pass);
+                if ($ssh_password_encrypted === null) {
+                    header("Location: /documentador-red/detalles?id=" . $id_equipo . "&mensaje=error_cifrado");
+                    exit();
+                }
             }
 
             // Enviamos todo al modelo

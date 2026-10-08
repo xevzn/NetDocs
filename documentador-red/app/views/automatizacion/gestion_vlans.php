@@ -5,6 +5,10 @@ if (!isset($_SESSION['usuario_id']) || $_SESSION['rol_id'] > 2) {
     exit();
 }
 
+if (empty($_SESSION['csrf_vlan_token'])) {
+    $_SESSION['csrf_vlan_token'] = bin2hex(random_bytes(32));
+}
+
 $tab_activa = $_GET['tab'] ?? 'manual';
 $info = $_SESSION['vlan_info'] ?? null;
 $trace = $_SESSION['vlan_trace'] ?? null;
@@ -134,6 +138,7 @@ require_once __DIR__ . '/../layouts/sidebar.php';
                     </div>
 
                     <form action="/documentador-red/ejecutar-vlan-cambio" method="POST" style="background: var(--bg-body); padding: 25px; border-radius: 6px; border: 1px solid var(--border-color);" onsubmit="document.getElementById('loading-set-manual').style.display='inline-flex'; document.getElementById('btn-set-manual').style.display='none';">
+                        <input type="hidden" name="csrf_vlan_token" value="<?php echo htmlspecialchars($_SESSION['csrf_vlan_token'], ENT_QUOTES, 'UTF-8'); ?>">
                         <input type="hidden" name="tab_origen" value="manual">
                         <input type="hidden" name="switch_ip" value="<?php echo htmlspecialchars($info['switch_ip']); ?>">
                         <input type="hidden" name="port" value="<?php echo htmlspecialchars($info['port']); ?>">
@@ -187,6 +192,7 @@ require_once __DIR__ . '/../layouts/sidebar.php';
                     </div>
 
                     <form action="/documentador-red/ejecutar-vlan-cambio" method="POST" style="background: var(--bg-body); padding: 25px; border-radius: 6px; border: 1px solid var(--border-color);" onsubmit="document.getElementById('loading-set-auto').style.display='inline-flex'; document.getElementById('btn-set-auto').style.display='none';">
+                        <input type="hidden" name="csrf_vlan_token" value="<?php echo htmlspecialchars($_SESSION['csrf_vlan_token'], ENT_QUOTES, 'UTF-8'); ?>">
                         <input type="hidden" name="tab_origen" value="auto">
                         <input type="hidden" name="switch_ip" value="<?php echo htmlspecialchars($trace['switch_ip']); ?>">
                         <input type="hidden" name="port" value="<?php echo htmlspecialchars($trace['port']); ?>">

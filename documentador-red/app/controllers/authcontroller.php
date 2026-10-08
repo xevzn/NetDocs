@@ -61,13 +61,13 @@ class AuthController {
 
     // --- 2. PROCESADOR DE REGISTRO ---
     public static function procesarRegistro() {
-        if (!isset($_POST['usuario']) || !isset($_POST['password']) || !isset($_POST['id_rol'])) {
+        if (!isset($_POST['usuario']) || !isset($_POST['password'])) {
             die("Error: Faltan datos para el registro.");
         }
 
         $usuario = trim($_POST['usuario']);
         $password = $_POST['password'];
-        $id_rol = $_POST['id_rol'];
+        $id_rol = 3;
 
         // Encriptamos la contraseña
         $passwordHash = password_hash($password, PASSWORD_BCRYPT);

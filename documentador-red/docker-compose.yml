@@ -14,6 +14,14 @@ services:
     environment:
       - ANSIBLE_HOST_KEY_CHECKING=False
       - TZ=America/Mexico_City
+      - INIT_ADMIN_USER=${INIT_ADMIN_USER}
+      - INIT_ADMIN_PASS=${INIT_ADMIN_PASS}
+      - INIT_ADMIN_EMAIL=${INIT_ADMIN_EMAIL}
+      - VAULT_MASTER_KEY=${VAULT_MASTER_KEY:?Set VAULT_MASTER_KEY in the environment}
+      - MYSQL_HOST=db
+      - MYSQL_USER=${MYSQL_USER:?Set MYSQL_USER in the environment}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in the environment}
+      - MYSQL_DATABASE=red_infraestructura
     depends_on:
       - db
 
@@ -24,11 +32,9 @@ services:
     command: --default-authentication-plugin=mysql_native_password
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: red_infraestructura
       TZ: America/Mexico_City
-    ports:
-      - "3306:3306"
     volumes:
       - db_data:/var/lib/mysql
 
@@ -36,11 +42,9 @@ services:
   phpmyadmin:
     image: phpmyadmin/phpmyadmin
     container_name: netdocs_pma
-    ports:
-      - "8080:80"
     environment:
       PMA_HOST: db
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       TZ: America/Mexico_City
     depends_on:
       - db

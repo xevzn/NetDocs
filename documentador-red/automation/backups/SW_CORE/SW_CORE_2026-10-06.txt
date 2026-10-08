@@ -1,0 +1,212 @@
+Building configuration...
+
+Current configuration : 4562 bytes
+!
+version 12.2
+no service pad
+service timestamps debug datetime msec
+service timestamps log datetime msec
+no service password-encryption
+!
+hostname SW_CORE
+!
+boot-start-marker
+boot-end-marker
+!
+!
+username cisco privilege 15 secret 5 $1$r386$.9W9Y6n8USMxUA4tz3rpy/
+!
+!
+no aaa new-model
+switch 1 provision ws-c3750-48p
+system mtu routing 1500
+ip domain-name netdocs.com
+!
+!
+!
+!
+crypto pki trustpoint TP-self-signed-1488520576
+ enrollment selfsigned
+ subject-name cn=IOS-Self-Signed-Certificate-1488520576
+ revocation-check none
+ rsakeypair TP-self-signed-1488520576
+!
+!
+crypto pki certificate chain TP-self-signed-1488520576
+ certificate self-signed 01
+  3082024B 308201B4 A0030201 02020101 300D0609 2A864886 F70D0101 04050030 
+  31312F30 2D060355 04031326 494F532D 53656C66 2D536967 6E65642D 43657274 
+  69666963 6174652D 31343838 35323035 3736301E 170D3933 30333031 30303130 
+  30355A17 0D323030 31303130 30303030 305A3031 312F302D 06035504 03132649 
+  4F532D53 656C662D 5369676E 65642D43 65727469 66696361 74652D31 34383835 
+  32303537 3630819F 300D0609 2A864886 F70D0101 01050003 818D0030 81890281 
+  8100CCFA B3D81AC3 7D9F2D66 24F2564D F2077D46 ECEFEF61 4C7F5A39 1FA1F951 
+  83B98A12 7CACBAD1 3CE7C6DC A741602D 6FBBF461 080EABCC 7A199410 D69B9612 
+  9FC87EE7 300DB961 D7812E62 41A427A9 B60BD5D5 640DBE88 B21E75EF 3FB6B07B 
+  98FE5F20 6AB9BA2F FA28CD13 674C6036 347FC03C 9D057406 72966C25 E25F4493 
+  830D0203 010001A3 73307130 0F060355 1D130101 FF040530 030101FF 301E0603 
+  551D1104 17301582 1353575F 434F5245 2E6E6574 646F6373 2E636F6D 301F0603 
+  551D2304 18301680 14CF62E8 D56F51B5 E4189C3F 81C40A9E A3EDA464 82301D06 
+  03551D0E 04160414 CF62E8D5 6F51B5E4 189C3F81 C40A9EA3 EDA46482 300D0609 
+  2A864886 F70D0101 04050003 8181009E 82320505 F0BAAC0A 735EE480 368E00D3 
+  33919A86 8264D810 95AD5476 A2A0E3DD AF9A77BC 93F44B78 3EE4E353 5D50531A 
+  69FAA674 42A3A4C8 2E9E177F 757A899F CC15A7C5 A1EA8989 3873450B FFB5195C 
+  77526E08 13A15132 BFDD385A 47ED7CE0 44F3E28D 67BB6734 276FC0D6 87D782C1 
+  2A46BED2 FAFF54CD BF5603C2 85B5D7
+  quit
+!
+!
+!
+spanning-tree mode pvst
+spanning-tree extend system-id
+!
+vlan internal allocation policy ascending
+!
+ip ssh version 2
+!
+!
+!
+interface FastEthernet1/0/1
+ switchport access vlan 99
+ switchport mode access
+ spanning-tree portfast
+!
+interface FastEthernet1/0/2
+!
+interface FastEthernet1/0/3
+!
+interface FastEthernet1/0/4
+!
+interface FastEthernet1/0/5
+!
+interface FastEthernet1/0/6
+!
+interface FastEthernet1/0/7
+!
+interface FastEthernet1/0/8
+!
+interface FastEthernet1/0/9
+!
+interface FastEthernet1/0/10
+!
+interface FastEthernet1/0/11
+!
+interface FastEthernet1/0/12
+!
+interface FastEthernet1/0/13
+!
+interface FastEthernet1/0/14
+!
+interface FastEthernet1/0/15
+!
+interface FastEthernet1/0/16
+!
+interface FastEthernet1/0/17
+!
+interface FastEthernet1/0/18
+!
+interface FastEthernet1/0/19
+!
+interface FastEthernet1/0/20
+!
+interface FastEthernet1/0/21
+!
+interface FastEthernet1/0/22
+!
+interface FastEthernet1/0/23
+!
+interface FastEthernet1/0/24
+!
+interface FastEthernet1/0/25
+!
+interface FastEthernet1/0/26
+!
+interface FastEthernet1/0/27
+!
+interface FastEthernet1/0/28
+!
+interface FastEthernet1/0/29
+!
+interface FastEthernet1/0/30
+!
+interface FastEthernet1/0/31
+!
+interface FastEthernet1/0/32
+!
+interface FastEthernet1/0/33
+!
+interface FastEthernet1/0/34
+!
+interface FastEthernet1/0/35
+!
+interface FastEthernet1/0/36
+!
+interface FastEthernet1/0/37
+!
+interface FastEthernet1/0/38
+!
+interface FastEthernet1/0/39
+!
+interface FastEthernet1/0/40
+!
+interface FastEthernet1/0/41
+!
+interface FastEthernet1/0/42
+!
+interface FastEthernet1/0/43
+!
+interface FastEthernet1/0/44
+!
+interface FastEthernet1/0/45
+!
+interface FastEthernet1/0/46
+ description TRUNK_TO_SW_2
+ switchport trunk encapsulation dot1q
+ switchport trunk allowed vlan 10,20,30,99
+ switchport mode trunk
+!
+interface FastEthernet1/0/47
+ description TRUNK_TO_SW_1
+ switchport trunk encapsulation dot1q
+ switchport trunk allowed vlan 10,20,30,99
+ switchport mode trunk
+!
+interface FastEthernet1/0/48
+ description TRUNK_TO_R1
+ switchport trunk encapsulation dot1q
+ switchport trunk allowed vlan 10,20,30,99
+ switchport mode trunk
+!
+interface GigabitEthernet1/0/1
+!
+interface GigabitEthernet1/0/2
+!
+interface GigabitEthernet1/0/3
+!
+interface GigabitEthernet1/0/4
+!
+interface Vlan1
+ no ip address
+ shutdown
+!
+interface Vlan99
+ ip address 192.168.99.2 255.255.255.0
+!
+ip default-gateway 192.168.99.1
+ip classless
+ip http server
+ip http secure-server
+!
+!
+!
+snmp-server community public RO
+!
+!
+line con 0
+line vty 0 4
+ login local
+ transport input ssh
+line vty 5 15
+ login
+!
+end

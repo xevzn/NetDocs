@@ -1,0 +1,147 @@
+Building configuration...
+
+Current configuration : 3315 bytes
+!
+version 12.2
+no service pad
+service timestamps debug datetime msec
+service timestamps log datetime msec
+no service password-encryption
+!
+hostname SW_2
+!
+boot-start-marker
+boot-end-marker
+!
+!
+username cisco privilege 15 secret 5 $1$e3Hr$IwM7R3KQxl38iFIZCv1To.
+no aaa new-model
+system mtu routing 1500
+ip subnet-zero
+!
+!
+ip domain-name netdocs.com
+!
+!
+crypto pki trustpoint TP-self-signed-632783872
+ enrollment selfsigned
+ subject-name cn=IOS-Self-Signed-Certificate-632783872
+ revocation-check none
+ rsakeypair TP-self-signed-632783872
+!
+!
+crypto pki certificate chain TP-self-signed-632783872
+ certificate self-signed 01
+  30820246 308201AF A0030201 02020101 300D0609 2A864886 F70D0101 04050030 
+  30312E30 2C060355 04031325 494F532D 53656C66 2D536967 6E65642D 43657274 
+  69666963 6174652D 36333237 38333837 32301E17 0D393330 33303130 30313435 
+  355A170D 32303031 30313030 30303030 5A303031 2E302C06 03550403 1325494F 
+  532D5365 6C662D53 69676E65 642D4365 72746966 69636174 652D3633 32373833 
+  38373230 819F300D 06092A86 4886F70D 01010105 0003818D 00308189 02818100 
+  D7FC6EFD 8AB67961 333A058E 3E1FD5B5 76C630F6 7C3A4A26 5E15E394 D10CEC36 
+  0055D8D3 10BB0CEC 4E966630 8BB387B3 582A2B3D 13694F60 15E40537 4043B2F8 
+  781E6B44 0537B8E0 7F351578 D3E882AE CB674D69 782F81BF EFEBFD6B 9673BBB7 
+  E6AE59AA 45931B58 CB2A8F8A C33401D9 A2089C4E DEEACBF9 FE93412B 7AEEE05B 
+  02030100 01A37030 6E300F06 03551D13 0101FF04 05300301 01FF301B 0603551D 
+  11041430 12821053 575F322E 6E657464 6F63732E 636F6D30 1F060355 1D230418 
+  30168014 86709051 0CD547CF B2B55DA6 FB0B6FC9 DAF6E32F 301D0603 551D0E04 
+  16041486 7090510C D547CFB2 B55DA6FB 0B6FC9DA F6E32F30 0D06092A 864886F7 
+  0D010104 05000381 81002A49 9674BB7D 2A90D80F 1068514E EF187DCF 228AB7A4 
+  22962BA6 E9223959 6ACBB50D 12594353 1BF971E7 5145CF8E 22527689 D8AC4BCA 
+  5DA6B4EC A845E189 C4E18DC2 DB2DB9E8 E03D91BD 3D52669B C185BCBA 65E94916 
+  ED9356ED 52AC940A F1454F7D 4E151E60 9BDEF673 567BA571 0AA0FD8C 780D951C 
+  2050CC06 4F7E3080 1F87
+  quit
+!
+!
+!
+!
+!
+spanning-tree mode pvst
+spanning-tree extend system-id
+!
+vlan internal allocation policy ascending
+!
+ip ssh version 2
+!
+!
+interface FastEthernet0/1
+!
+interface FastEthernet0/2
+!
+interface FastEthernet0/3
+!
+interface FastEthernet0/4
+!
+interface FastEthernet0/5
+!
+interface FastEthernet0/6
+!
+interface FastEthernet0/7
+!
+interface FastEthernet0/8
+!
+interface FastEthernet0/9
+!
+interface FastEthernet0/10
+!
+interface FastEthernet0/11
+!
+interface FastEthernet0/12
+!
+interface FastEthernet0/13
+!
+interface FastEthernet0/14
+!
+interface FastEthernet0/15
+!
+interface FastEthernet0/16
+!
+interface FastEthernet0/17
+!
+interface FastEthernet0/18
+!
+interface FastEthernet0/19
+!
+interface FastEthernet0/20
+!
+interface FastEthernet0/21
+!
+interface FastEthernet0/22
+!
+interface FastEthernet0/23
+!
+interface FastEthernet0/24
+ switchport trunk allowed vlan 10,20,30,99
+ switchport mode trunk
+!
+interface GigabitEthernet0/1
+!
+interface GigabitEthernet0/2
+!
+interface Vlan1
+ no ip address
+ no ip route-cache
+ shutdown
+!
+interface Vlan99
+ description MGT
+ ip address 192.168.99.4 255.255.255.0
+ no ip route-cache
+!
+ip default-gateway 192.168.99.1
+ip http server
+ip http secure-server
+snmp-server community public RO
+!
+control-plane
+!
+!
+line con 0
+line vty 0 4
+ login local
+ transport input ssh
+line vty 5 15
+ login
+!
+end

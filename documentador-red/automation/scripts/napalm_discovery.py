@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 import sys
 import json
+import os
 import re
-import base64
 import pymysql
 import warnings
 import paramiko
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import padding
 from napalm import get_network_driver
+from vault_crypto import decrypt_password
 
 # Suprimir warnings criptográficos molestos en la salida JSON
 warnings.filterwarnings("ignore")
@@ -31,12 +29,12 @@ paramiko.Transport._preferred_keys = (
 # ==========================================
 # CONFIGURACIÓN
 # ==========================================
-DB_HOSTS = ["netdocs_db", "db", "127.0.0.1"]
-DB_USER = "root"
-DB_PASS = "root"
-DB_NAME = "red_infraestructura"
-VAULT_MASTER_KEY = "0507_netdocs_master_key_2026"
-
+DB_HOSTS = [os.getenv("MYSQL_HOST", "db"), "netdocs_db", "127.0.0.1"]
+DB_USER = os.getenv("MYSQL_USER")
+DB_PASS = os.getenv("MYSQL_ROOT_PASSWORD")
+DB_NAME = os.getenv("MYSQL_DATABASE", "red_infraestructura")
+if not DB_USER or not DB_PASS:
+    raise RuntimeError("Faltan las variables MYSQL_USER y MYSQL_ROOT_PASSWORD.")
 def conectar_db():
     for host in DB_HOSTS:
         try:
@@ -48,23 +46,6 @@ def conectar_db():
         except Exception:
             continue
     return None
-
-def decrypt_password(encoded_payload):
-    if not encoded_payload:
-        return None
-    try:
-        key = VAULT_MASTER_KEY.encode('utf-8').ljust(32, b'\0')[:32]
-        decoded = base64.b64decode(encoded_payload)
-        parts = decoded.split(b'::')
-        if len(parts) != 2:
-            return encoded_payload if len(encoded_payload) < 30 else None
-        cipher = Cipher(algorithms.AES(key), modes.CBC(parts[1]), backend=default_backend())
-        decryptor = cipher.decryptor()
-        padded = decryptor.update(base64.b64decode(parts[0])) + decryptor.finalize()
-        unpadder = padding.PKCS7(algorithms.AES.block_size).unpadder()
-        return (unpadder.update(padded) + unpadder.finalize()).decode('utf-8')
-    except Exception:
-        return None
 
 def normalizar_puerto(puerto):
     """Estandariza nombres de interfaces para Catalyst (Gi/Te/Fa), Routers (Se/Gi) y Virtuales (Et)."""

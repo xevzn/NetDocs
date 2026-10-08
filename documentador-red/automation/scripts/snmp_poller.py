@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 import socket
 import random
+import os
 import pymysql
 from datetime import datetime
 
 # ==========================================
 # CONFIGURACIÓN DE BASE DE DATOS
 # ==========================================
-DB_HOSTS = ['netdocs_db', 'db', '127.0.0.1']
-DB_USER = 'root'
-DB_PASS = 'root'
-DB_NAME = 'red_infraestructura'
+DB_HOSTS = [os.getenv("MYSQL_HOST", "db"), "netdocs_db", "127.0.0.1"]
+DB_USER = os.getenv("MYSQL_USER")
+DB_PASS = os.getenv("MYSQL_ROOT_PASSWORD")
+DB_NAME = os.getenv("MYSQL_DATABASE", "red_infraestructura")
+if not DB_USER or not DB_PASS:
+    raise RuntimeError("Faltan las variables MYSQL_USER y MYSQL_ROOT_PASSWORD.")
 
 # ==========================================
 # FAMILIAS DE OIDs UNIVERSALES CISCO (IOS-XE 3650 / ISR + IOS Clásico / GNS3 IOU)

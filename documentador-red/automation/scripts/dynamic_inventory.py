@@ -2,56 +2,19 @@
 import os
 import json
 import sys
-import base64
 import pymysql
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import padding
+from vault_crypto import decrypt_password
 
 
 # ==============================================================================
 # CONFIGURACIÓN DE BASE DE DATOS Y BÓVEDA
 # ==============================================================================
-DB_HOST = "netdocs_db"
-DB_USER = "root"
-DB_PASS = "root" # <--- Pon aquí la contraseña de tu usuario root de MySQL si tiene
-DB_NAME = "red_infraestructura"
-
-# Debe ser IDÉNTICA a la que usamos en PHP (EquipoController.php)
-VAULT_MASTER_KEY = "0507_netdocs_master_key_2026"
-
-def decrypt_password(encoded_payload):
-    """Desencripta la contraseña AES-256-CBC guardada por PHP."""
-    if not encoded_payload:
-        return None
-    try:
-        # PHP rellena la llave a 32 bytes, Python requiere que lo hagamos explícito
-        key = VAULT_MASTER_KEY.encode('utf-8').ljust(32, b'\0')[:32]
-        
-        # Descodificar la cadena de la Base de Datos
-        decoded_payload = base64.b64decode(encoded_payload)
-        parts = decoded_payload.split(b'::')
-        
-        if len(parts) != 2:
-            return None
-        
-        # La primera parte es el texto cifrado en Base64, la segunda es el Vector (IV) en crudo
-        encrypted_data = base64.b64decode(parts[0])
-        iv = parts[1]
-        
-        # Proceso de descifrado AES
-        cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
-        decryptor = cipher.decryptor()
-        padded_data = decryptor.update(encrypted_data) + decryptor.finalize()
-        
-        # Remover el Padding (PKCS7 por defecto en OpenSSL)
-        unpadder = padding.PKCS7(algorithms.AES.block_size).unpadder()
-        data = unpadder.update(padded_data) + unpadder.finalize()
-        
-        return data.decode('utf-8')
-    except Exception as e:
-        # Si falla (por llave incorrecta o dato corrupto), devolvemos None silenciosamente
-        return None
+DB_HOST = os.getenv("MYSQL_HOST", "db")
+DB_USER = os.getenv("MYSQL_USER")
+DB_PASS = os.getenv("MYSQL_ROOT_PASSWORD")
+DB_NAME = os.getenv("MYSQL_DATABASE", "red_infraestructura")
+if not DB_USER or not DB_PASS:
+    raise RuntimeError("Faltan las variables MYSQL_USER y MYSQL_ROOT_PASSWORD.")
 
 def get_inventory():
     """Conecta a MySQL, extrae equipos, desencripta y genera JSON para Ansible."""

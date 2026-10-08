@@ -13,8 +13,26 @@ class AutomatizacionController {
     // ========================================================
     // HELPER INTERNO: Ejecuta scripts Python y blinda JSON/Null en PHP 8.3
     // ========================================================
-    private static function ejecutarScriptJson(string $cmd): array {
-        $raw_output = shell_exec($cmd . " 2>&1");
+    private static function ejecutarScriptJson(string|array $cmd): array {
+        if (is_array($cmd)) {
+            $process = proc_open($cmd, [
+                0 => ['pipe', 'r'],
+                1 => ['pipe', 'w'],
+                2 => ['redirect', 1]
+            ], $pipes);
+
+            if (is_resource($process)) {
+                fclose($pipes[0]);
+                $raw_output = stream_get_contents($pipes[1]);
+                fclose($pipes[1]);
+                proc_close($process);
+            } else {
+                $raw_output = null;
+            }
+        } else {
+            $raw_output = shell_exec($cmd . " 2>&1");
+        }
+
         $str_output = is_string($raw_output) ? trim($raw_output) : '';
 
         if ($str_output === '') {
@@ -283,8 +301,16 @@ class AutomatizacionController {
         session_start();
         if (!isset($_SESSION['usuario_id']) || $_SESSION['rol_id'] > 2) { die("Acceso denegado."); }
 
-        $target_ip = trim($_POST['target_ip'] ?? '');
-        $gateway_ip = trim($_POST['gateway_ip'] ?? '');
+        $target_ip = $_POST['target_ip'] ?? '';
+        $gateway_ip = $_POST['gateway_ip'] ?? '';
+        if (!is_string($target_ip) || !is_string($gateway_ip)) {
+            $_SESSION['arp_error'] = "Formato de IP inválido.";
+            header("Location: /documentador-red/buscador-arp");
+            exit();
+        }
+
+        $target_ip = trim($target_ip);
+        $gateway_ip = trim($gateway_ip);
 
         if (empty($target_ip) || empty($gateway_ip)) {
             $_SESSION['arp_error'] = "Ambas IPs son obligatorias.";
@@ -350,10 +376,40 @@ class AutomatizacionController {
     // CRÍTICO: Modifica configuración en la red
     public static function aplicarCambioVlan() {
         session_start();
-        $ip = trim($_POST['switch_ip'] ?? '');
-        $port = trim($_POST['port'] ?? '');
-        $vlan = trim($_POST['new_vlan'] ?? '');
-        $tab = $_POST['tab_origen'] ?? 'manual';
+        if (!isset($_SESSION['usuario_id']) || !in_array((int)($_SESSION['rol_id'] ?? 0), [1, 2], true)) {
+            http_response_code(403);
+            die("Acceso denegado.");
+        }
+
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+            http_response_code(405);
+            die("Método no permitido.");
+        }
+
+        $request_token = $_POST['csrf_vlan_token'] ?? null;
+        $session_token = $_SESSION['csrf_vlan_token'] ?? null;
+        if (!is_string($request_token) || !is_string($session_token) || !hash_equals($session_token, $request_token)) {
+            http_response_code(403);
+            die("Solicitud no válida.");
+        }
+
+        $tab_origen = $_POST['tab_origen'] ?? 'manual';
+        $tab = is_string($tab_origen) && in_array($tab_origen, ['manual', 'auto'], true)
+            ? $tab_origen
+            : 'manual';
+        $ip = $_POST['switch_ip'] ?? null;
+        $port = $_POST['port'] ?? null;
+        $vlan = $_POST['new_vlan'] ?? null;
+
+        if (!is_string($ip) || !is_string($port) || !is_string($vlan)) {
+            $_SESSION['vlan_error'] = "Formato de IP, puerto o VLAN inválido.";
+            header("Location: /documentador-red/gestion-vlans?tab=" . urlencode($tab));
+            exit();
+        }
+
+        $ip = trim($ip);
+        $port = trim($port);
+        $vlan = trim($vlan);
 
         if (empty($ip) || empty($port) || empty($vlan)) {
             $_SESSION['vlan_error'] = "Todos los campos (Switch IP, Puerto y Nueva VLAN) son obligatorios.";
@@ -361,10 +417,16 @@ class AutomatizacionController {
             exit();
         }
 
+        $valid_port = preg_match('~\A(?:Et|Ethernet|Gi|GigabitEthernet|Fa|FastEthernet|Te|TenGigabitEthernet|Twe|TwentyFiveGigE|Fo|FortyGigabitEthernet|Hu|HundredGigE|Po|Port-channel)[0-9]+(?:/[0-9]+){0,3}\z~i', $port) === 1;
+        $valid_vlan = preg_match('/\A[0-9]{1,4}\z/', $vlan) === 1 && (int)$vlan >= 1 && (int)$vlan <= 4094;
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false || !$valid_port || !$valid_vlan) {
+            $_SESSION['vlan_error'] = "IP, puerto físico o VLAN fuera del formato permitido.";
+            header("Location: /documentador-red/gestion-vlans?tab=" . urlencode($tab));
+            exit();
+        }
+
         $script = self::baseDir() . "/automation/scripts/vlan_manager.py";
-        $cmd = "python3 " . escapeshellarg($script) . " set " . escapeshellarg($ip) . " " . escapeshellarg($port) . " " . escapeshellarg($vlan);
-        
-        $res = self::ejecutarScriptJson($cmd);
+        $res = self::ejecutarScriptJson(['python3', $script, 'set', $ip, $port, (string)(int)$vlan]);
         $output = $res['data'];
 
         if ($res['ok'] && !empty($output['success'])) {

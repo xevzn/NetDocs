@@ -7,7 +7,6 @@ ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
 // --- 2. REQUERIMOS LOS ARCHIVOS EN MINÚSCULAS ---
-// Nota cómo ahora 'core' y 'database.php' están en minúsculas para coincidir con tus carpetas
 require_once __DIR__ . '/../app/core/database.php';
 
 // --- 3. ACTIVACION DEL LOG DE SEGURIDAD ---
@@ -252,12 +251,15 @@ if ($ruta === '/login-procesar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     LogController::index();
 
 } else {
-    // Si la ruta es '/', o cualquier otra cosa, mostramos el login
     try {
         $db = Database::conectar(); 
+        
+        require_once __DIR__ . '/../app/models/usuario.php';
+        Usuario::inicializarAdminDefecto();
+        // ------------------------------------------------------
+
         require_once __DIR__ . '/../app/views/auth/login.php';
     } catch (Exception $e) {
-        // Ahora si la base de datos falla, nos dirá exactamente por qué
         echo "<div style='color: white; background: red; padding: 20px;'>
                 <b>Error Crítico:</b> Sin conexión a Base de Datos.<br>
                 Detalle técnico: " . $e->getMessage() . "

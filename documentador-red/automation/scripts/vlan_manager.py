@@ -1,43 +1,56 @@
 #!/usr/bin/env python3
+import ipaddress
+import os
 import sys
 import json
 import re
-import base64
 import pymysql
 import time
 import warnings
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import padding
 from netmiko import ConnectHandler
+from vault_crypto import decrypt_password
 
 warnings.filterwarnings("ignore")
 
-DB_HOST = "db"
-DB_USER = "root"
-DB_PASS = "root"
-DB_NAME = "red_infraestructura"
-VAULT_MASTER_KEY = "0507_netdocs_master_key_2026"
+DB_HOST = os.getenv("MYSQL_HOST", "db")
+DB_USER = os.getenv("MYSQL_USER")
+DB_PASS = os.getenv("MYSQL_ROOT_PASSWORD")
+DB_NAME = os.getenv("MYSQL_DATABASE", "red_infraestructura")
+if not DB_USER or not DB_PASS:
+    raise RuntimeError("Faltan las variables MYSQL_USER y MYSQL_ROOT_PASSWORD.")
 
-def decrypt_password(encoded_payload):
-    if not encoded_payload: return None
+INTERFACE_PATTERN = re.compile(
+    r"(?:Et|Ethernet|Gi|GigabitEthernet|Fa|FastEthernet|Te|TenGigabitEthernet|"
+    r"Twe|TwentyFiveGigE|Fo|FortyGigabitEthernet|Hu|HundredGigE|Po|Port-channel)"
+    r"[0-9]{1,3}(?:/[0-9]{1,3}){0,3}",
+    re.IGNORECASE
+)
+
+def validar_ip_puerto(ip, port):
+    if not isinstance(ip, str) or not isinstance(port, str):
+        return False
     try:
-        key = VAULT_MASTER_KEY.encode('utf-8').ljust(32, b'\0')[:32]
-        decoded = base64.b64decode(encoded_payload)
-        parts = decoded.split(b'::')
-        if len(parts) != 2: return None
-        cipher = Cipher(algorithms.AES(key), modes.CBC(parts[1]), backend=default_backend())
-        decryptor = cipher.decryptor()
-        padded = decryptor.update(base64.b64decode(parts[0])) + decryptor.finalize()
-        unpadder = padding.PKCS7(algorithms.AES.block_size).unpadder()
-        return (unpadder.update(padded) + unpadder.finalize()).decode('utf-8')
-    except: return None
+        ipaddress.IPv4Address(ip)
+    except ipaddress.AddressValueError:
+        return False
+    return INTERFACE_PATTERN.fullmatch(port) is not None
+
+def validar_vlan(vlan):
+    if not isinstance(vlan, str) or re.fullmatch(r"[0-9]{1,4}", vlan) is None:
+        return None
+    vlan_id = int(vlan)
+    return vlan_id if 1 <= vlan_id <= 4094 else None
 
 def get_device_credentials(ip):
     try:
+        ipaddress.IPv4Address(ip)
+    except (ipaddress.AddressValueError, TypeError):
+        return None
+
+    try:
         conn = pymysql.connect(host=DB_HOST, user=DB_USER, password=DB_PASS, database=DB_NAME, cursorclass=pymysql.cursors.DictCursor)
         with conn.cursor() as cursor:
-            cursor.execute("SELECT ssh_user, ssh_password_encrypted, plantilla_conexion FROM equipos WHERE ip_gestion = %s OR hostname = %s", (ip, ip))
+            cursor.execute("SELECT ssh_user, ssh_password_encrypted, plantilla_conexion FROM equipos WHERE ip_gestion = %s", (ip,))
             eq = cursor.fetchone()
         conn.close()
         
@@ -50,6 +63,8 @@ def get_device_credentials(ip):
     return None
 
 def get_info(ip, port):
+    if not validar_ip_puerto(ip, port):
+        return {"success": False, "error": "IP o interfaz física no válida."}
     creds = get_device_credentials(ip)
     if not creds: return {"success": False, "error": f"Sin credenciales en BD para {ip}"}
     try:
@@ -65,14 +80,17 @@ def get_info(ip, port):
         return {"success": False, "error": str(e)}
 
 def set_vlan(ip, port, vlan):
-    if any(x in port for x in ["CPU", "Management", "Vlan", "BVI"]):
-        return {"success": False, "error": "Puerto virtual o especial no válido."}
+    if not validar_ip_puerto(ip, port):
+        return {"success": False, "error": "IP o interfaz física no válida."}
+    vlan_id = validar_vlan(vlan)
+    if vlan_id is None:
+        return {"success": False, "error": "La VLAN debe ser un número entre 1 y 4094."}
     creds = get_device_credentials(ip)
     if not creds: return {"success": False, "error": f"Sin credenciales en BD para {ip}"}
     try:
         with ConnectHandler(**creds) as net_connect:
             net_connect.enable()
-            cmds = [f"interface {port}", f"switchport access vlan {vlan}", "shutdown"]
+            cmds = [f"interface {port}", f"switchport access vlan {vlan_id}", "shutdown"]
             net_connect.send_config_set(cmds)
             time.sleep(2) # Simular desconexión
             net_connect.send_config_set([f"interface {port}", "no shutdown"])
@@ -82,18 +100,12 @@ def set_vlan(ip, port, vlan):
         return {"success": False, "error": str(e)}
 
 if __name__ == '__main__':
-    if len(sys.argv) < 4:
-        print(json.dumps({"success": False, "error": "Faltan parámetros"}))
-        sys.exit(1)
-    
-    action = sys.argv[1]
-    ip = sys.argv[2]
-    port = sys.argv[3]
-    
-    if action == "info":
+    if len(sys.argv) >= 2 and sys.argv[1] == "info" and len(sys.argv) == 4:
+        ip, port = sys.argv[2:]
         print(json.dumps(get_info(ip, port)))
-    elif action == "set" and len(sys.argv) >= 5:
-        vlan = sys.argv[4]
+    elif len(sys.argv) >= 2 and sys.argv[1] == "set" and len(sys.argv) == 5:
+        ip, port, vlan = sys.argv[2:]
         print(json.dumps(set_vlan(ip, port, vlan)))
     else:
-        print(json.dumps({"success": False, "error": "Acción inválida"}))
+        print(json.dumps({"success": False, "error": "Acción o cantidad de parámetros inválida."}))
+        sys.exit(1)

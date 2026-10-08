@@ -1,17 +1,12 @@
-<?php 
-// Idealmente esto debería ir en el Controlador, pero lo dejamos aquí optimizado
+<?php
+require_once __DIR__ . '/../../core/vault.php';
+
 $usuario_ssh = 'No configurado';
 $password_ssh_descifrada = 'No configurada';
 
 if ($_SESSION['rol_id'] <= 2 && !empty($equipo['ssh_password_encrypted'])) {
     $usuario_ssh = $equipo['ssh_user'] ?: 'No configurado';
-    $vault_master_key = "0507_netdocs_master_key_2026";
-    $decoded = base64_decode($equipo['ssh_password_encrypted']);
-    
-    if (strpos($decoded, '::') !== false) {
-        list($encrypted_data, $iv) = explode('::', $decoded);
-        $password_ssh_descifrada = openssl_decrypt($encrypted_data, 'aes-256-cbc', $vault_master_key, 0, $iv);
-    }
+    $password_ssh_descifrada = vault_decrypt_credential($equipo['ssh_password_encrypted']) ?? 'No disponible';
 }
 ?>
 <?php require_once __DIR__ . '/../layouts/header.php'; ?>

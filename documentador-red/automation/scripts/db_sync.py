@@ -1,11 +1,14 @@
 import pymysql
 import sys
 import json
+import os
 
-DB_HOST = "netdocs_db"
-DB_USER = 'root'
-DB_PASS = 'root'
-DB_NAME = 'red_infraestructura'
+DB_HOST = os.getenv("MYSQL_HOST", "db")
+DB_USER = os.getenv("MYSQL_USER")
+DB_PASS = os.getenv("MYSQL_ROOT_PASSWORD")
+DB_NAME = os.getenv("MYSQL_DATABASE", "red_infraestructura")
+if not DB_USER or not DB_PASS:
+    raise RuntimeError("Faltan las variables MYSQL_USER y MYSQL_ROOT_PASSWORD.")
 
 def conectar_bd():
     return pymysql.connect(host=DB_HOST, user=DB_USER, password=DB_PASS, database=DB_NAME)
