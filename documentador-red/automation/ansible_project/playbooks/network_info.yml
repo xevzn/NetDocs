@@ -1,0 +1,124 @@
+---
+- name: Auditoría Estructural Universal (Switches L2/L3 y Routers)
+  hosts: all
+  gather_facts: no
+  connection: network_cli
+  
+  vars:
+    ansible_network_cli_ssh_type: paramiko
+    ansible_ssh_common_args: '-o KexAlgorithms=+diffie-hellman-group1-sha1,diffie-hellman-group14-sha1,diffie-hellman-group-exchange-sha1 -o HostKeyAlgorithms=+ssh-rsa'
+
+  tasks:
+    # =========================================================
+    # 1. PARSEOS TEXTFSM UNIVERSALES
+    # =========================================================
+    - name: Obtener Estado Fisico y VLANs (Switches L2/L3)
+      when: inventory_hostname in groups['switches']
+      ansible.utils.cli_parse:
+        command: "show interfaces status"
+        parser:
+          name: ansible.netcommon.ntc_templates
+      register: sh_int_status
+      ignore_errors: yes
+
+    - name: Obtener Direccionamiento IP e Interfaces L3 (Routers y Switches)
+      ansible.utils.cli_parse:
+        command: "show ip interface brief"
+        parser:
+          name: ansible.netcommon.ntc_templates
+      register: sh_ip_int_brief
+      ignore_errors: yes
+
+    - name: Obtener Tabla de Enrutamiento L3
+      ansible.utils.cli_parse:
+        command: "show ip route"
+        parser:
+          name: ansible.netcommon.ntc_templates
+      register: sh_route
+      ignore_errors: yes
+
+    # =========================================================
+    # 2. AUDITORÍA DE SEGURIDAD (Comandos Raw con Rescate)
+    # =========================================================
+    - name: Obtener Datos de Seguridad
+      cisco.ios.ios_command:
+        commands:
+          - show ip ssh
+          - show access-lists
+          - show running-config | include username
+      register: raw_security
+      ignore_errors: yes
+
+    - name: Estructurar Variables de Seguridad (Blindaje)
+      set_fact:
+        datos_seguridad:
+          ssh_version: "{{ '2.0' if raw_security.stdout is defined and raw_security.stdout | length > 0 and 'SSH Enabled - version 2.0' in raw_security.stdout[0] else '1.99' }}"
+          acl_count: "{{ raw_security.stdout[1].count('access list') if raw_security.stdout is defined and raw_security.stdout | length > 1 else '0' }}"
+          users_list: "{{ raw_security.stdout[2].count('username') | string + '_users' if raw_security.stdout is defined and raw_security.stdout | length > 2 else '0_users' }}"
+          telnet_enabled: "False"
+
+    # =========================================================
+    # 3. INYECCIÓN SECUENCIAL A MYSQL (Evita Deadlocks)
+    # =========================================================
+    - name: Inyectar Puertos L2 de Switches a MySQL
+      when: 
+        - inventory_hostname in groups['switches']
+        - sh_int_status.parsed is defined
+      ansible.builtin.command:
+        cmd: "python3 /var/www/html/documentador-red/automation/scripts/db_sync.py '{{ inventory_hostname }}' 'puertos_l2' '{{ sh_int_status.parsed | to_json }}'"
+      delegate_to: localhost
+      throttle: 1
+      vars:
+        ansible_become: false
+
+    - name: Inyectar Interfaces L3 y SVIs (Routers y Switches) a MySQL
+      when: sh_ip_int_brief.parsed is defined
+      ansible.builtin.command:
+        cmd: "python3 /var/www/html/documentador-red/automation/scripts/db_sync.py '{{ inventory_hostname }}' 'puertos_l3' '{{ sh_ip_int_brief.parsed | to_json }}'"
+      delegate_to: localhost
+      throttle: 1
+      vars:
+        ansible_become: false
+
+    - name: Inyectar Tabla de Enrutamiento a MySQL
+      when: sh_route.parsed is defined
+      ansible.builtin.command:
+        cmd: "python3 /var/www/html/documentador-red/automation/scripts/db_sync.py '{{ inventory_hostname }}' 'rutas' '{{ sh_route.parsed | to_json }}'"
+      delegate_to: localhost
+      throttle: 1
+      vars:
+        ansible_become: false
+
+    - name: Inyectar Auditoría de Seguridad a MySQL
+      ansible.builtin.command:
+        cmd: "python3 /var/www/html/documentador-red/automation/scripts/db_sync.py '{{ inventory_hostname }}' 'seguridad' '{{ datos_seguridad | to_json }}'"
+      delegate_to: localhost
+      throttle: 1
+      vars:
+        ansible_become: false
+
+    # =========================================================
+    # 4. RESPALDO DE CONFIGURACIONES LOCAL
+    # =========================================================
+    - name: Crear directorio backup host
+      ansible.builtin.file:
+        path: "/var/www/html/documentador-red/automation/backups/{{ inventory_hostname }}"
+        state: directory
+      delegate_to: localhost
+      vars:
+        ansible_become: false
+
+    - name: Obtener Running Config
+      cisco.ios.ios_command:
+        commands: show running-config
+      register: run_config_backup
+      ignore_errors: yes
+
+    - name: Guardar Archivo de Backup
+      when: run_config_backup.stdout is defined
+      ansible.builtin.copy:
+        content: "{{ run_config_backup.stdout[0] }}"
+        dest: "/var/www/html/documentador-red/automation/backups/{{ inventory_hostname }}/{{ inventory_hostname }}_{{ lookup('pipe', 'date +%Y-%m-%d') }}.txt"
+      delegate_to: localhost
+      vars:
+        ansible_become: false
