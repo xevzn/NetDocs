@@ -170,6 +170,94 @@ docker compose down -v             # detiene y BORRA la base de datos
 docker compose exec db sh -c 'mysqldump -uroot -p"$MYSQL_ROOT_PASSWORD" red_infraestructura' > respaldo.sql
 ```
 
+### Limpiar la base de datos (dejar solo lo que necesites)
+
+> **Haz un respaldo antes** (`mysqldump`, ver arriba). Estas operaciones no se pueden deshacer.
+> Los comandos usan la contraseña de root del contenedor, así que funcionan tal cual, sin pegarla.
+
+Para ejecutar SQL: `docker compose exec db sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" red_infraestructura'` (modo interactivo), o pasa el bloque por entrada estándar como en los ejemplos.
+
+**Tablas del sistema**
+
+| Grupo | Tablas |
+|---|---|
+| Usuarios | `usuarios`, `roles` |
+| Documentación | `equipos`, `puertos`, `puertos_operativos`, `direcciones_ip`, `vlans`, `tabla_enrutamiento`, `topologia_enlaces` |
+| Monitoreo y auditoría | `historial_salud`, `auditoria_seguridad` |
+| Bitácoras | `logs_auditoria`, `logs_waf`, `login_intentos` |
+
+Borrar un equipo elimina en cascada sus puertos, enrutamiento, salud y auditoría; borrar una VLAN elimina sus IPs.
+
+**A) Borrar toda la documentación y dejar solo usuarios (y roles)**
+```bash
+docker compose exec -T db sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" red_infraestructura' <<'SQL'
+SET FOREIGN_KEY_CHECKS = 0;
+TRUNCATE TABLE auditoria_seguridad;
+TRUNCATE TABLE historial_salud;
+TRUNCATE TABLE tabla_enrutamiento;
+TRUNCATE TABLE puertos_operativos;
+TRUNCATE TABLE puertos;
+TRUNCATE TABLE direcciones_ip;
+TRUNCATE TABLE topologia_enlaces;
+TRUNCATE TABLE vlans;
+TRUNCATE TABLE equipos;
+SET FOREIGN_KEY_CHECKS = 1;
+SQL
+```
+
+**B) Limpiar solo las bitácoras y registros de seguridad**
+```bash
+docker compose exec -T db sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" red_infraestructura' <<'SQL'
+TRUNCATE TABLE logs_waf;
+TRUNCATE TABLE login_intentos;      -- también desbloquea cuentas por exceso de intentos
+DELETE FROM logs_auditoria;         -- bitácora de acciones de usuarios
+SQL
+```
+
+**C) Borrar solo los datos de monitoreo (conservando equipos y puertos)**
+```bash
+docker compose exec -T db sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" red_infraestructura' <<'SQL'
+TRUNCATE TABLE historial_salud;
+TRUNCATE TABLE auditoria_seguridad;
+TRUNCATE TABLE tabla_enrutamiento;
+TRUNCATE TABLE puertos_operativos;
+SQL
+```
+Se vuelven a llenar al ejecutar el orquestador y la auditoría.
+
+**D) Dejar un solo administrador (el usuario con ID 1)**
+```bash
+docker compose exec -T db sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" red_infraestructura' <<'SQL'
+DELETE FROM logs_auditoria WHERE id_usuario <> 1;
+DELETE FROM usuarios WHERE id <> 1;
+SQL
+```
+
+**E) Borrar solo los equipos (y todo lo que cuelga de ellos), conservando VLAN y usuarios**
+```bash
+docker compose exec -T db sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" red_infraestructura' <<'SQL'
+DELETE FROM equipos;
+TRUNCATE TABLE topologia_enlaces;
+SQL
+```
+
+**F) Dejar la base completamente vacía y recrearla de cero**
+Borra todo, incluidos usuarios; al reiniciar se vuelve a cargar `init.sql` y se crea el administrador de `INIT_ADMIN_USER` / `INIT_ADMIN_PASS`:
+```bash
+docker compose down -v
+docker compose up -d --build
+```
+
+**G) Borrar los respaldos de configuración y archivos generados** (no están en la base de datos)
+```bash
+docker compose exec app find /var/www/html/documentador-red/automation/backups -type f ! -name .gitkeep -delete
+```
+
+Notas:
+- Si limpias `equipos`, los respaldos de `automation/backups/` y los CSV de `outputs/` quedan huérfanos: bórralos con la opción G.
+- No borres `roles`: la aplicación espera los tres roles (Administrador, Técnico, Lector).
+- Si después de limpiar no puedes entrar, comprueba que quede al menos un usuario activo con rol 1; si no, usa la opción F.
+
 ### Solución de problemas
 
 | Síntoma | Causa y solución |
