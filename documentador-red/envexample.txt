@@ -1,0 +1,24 @@
+# Copia este archivo a .env y completa los valores. NO subas .env al repositorio.
+
+# --- Base de datos (usuario de aplicación, NO root) ---
+MYSQL_ROOT_PASSWORD=cambia-esta-clave-root
+MYSQL_USER=netdocs
+MYSQL_PASSWORD=cambia-esta-clave-de-aplicacion
+
+# --- Bóveda de credenciales (AES-256-GCM). Cambiarla invalida las contraseñas ya guardadas ---
+VAULT_MASTER_KEY=genera-una-clave-larga-con-openssl-rand-base64-48
+
+# --- Administrador inicial (solo se crea si no existe ninguno). Contraseña de 12+ caracteres ---
+INIT_ADMIN_USER=admin
+INIT_ADMIN_PASS=
+INIT_ADMIN_EMAIL=admin@netdocs.local
+
+# --- Opcionales ---
+# SESSION_COOKIE_SECURE=1   # activar si hay HTTPS (por ejemplo, proxy inverso con TLS)
+# BIND_ADDR=127.0.0.1       # publicar solo en localhost detrás de un proxy
+
+# URL pública para los códigos QR de las etiquetas (IP o nombre que alcancen los móviles), sin barra final
+# APP_BASE_URL=http://192.168.1.10
+
+
+Es necesario cambiar la extension de este archivo a ".env" para su correcto funcionamiento.
