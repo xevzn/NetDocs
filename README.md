@@ -22,7 +22,7 @@ Combina un inventario en base de datos con automatización (Ansible, Netmiko, NA
 | **VLAN y direccionamiento** | Catálogo de VLAN con subred y gateway, mapa de IPs por VLAN. |
 | **Topología y búsqueda** | Mapa de red interactivo (Cytoscape) y buscador global (equipos, puertos, IPs, VLAN). |
 | **Monitoreo** | Monitor en vivo por SNMP (CPU/RAM con gráficos) y página de estadísticas. |
-| **Automatización** | Orquestador Ansible (recolecta información y la sincroniza con la BD), auditoría de seguridad, respaldos de configuración con comparación (diff) y descarga, descubrimiento NAPALM, rastreo ARP, consulta y cambio de VLAN en equipos. |
+| **Automatización** | Orquestador Ansible (aprovisiona la comunidad SNMP y respalda), auditoría que recolecta el estado real (puertos, interfaces L3, rutas y seguridad), respaldos con comparación (diff) y descarga, descubrimiento NAPALM, rastreo ARP, consulta y cambio de VLAN en equipos. |
 | **Bóveda** | Credenciales de los equipos cifradas con AES-256-GCM. |
 | **Administración** | Usuarios y roles, bitácora de acciones y registro del WAF. |
 
@@ -76,6 +76,10 @@ documentador-red/
 └── scripts/vendor-js.sh    Descarga las librerías JS a public/js/vendor/
 ```
 
+### Dos planos de información
+
+La documentación capturada a mano (`equipos`, `puertos`, `vlans`, `direcciones_ip`) y el estado que lee la automatización de los equipos (`puertos_operativos`, `tabla_enrutamiento`, `auditoria_seguridad`, `historial_salud`, `topologia_enlaces`) viven en tablas separadas. La automatización nunca sobrescribe lo documentado: un error de un script o de Ansible no puede dañar la documentación. A cambio, ambos planos pueden diferir (*drift*) y la diferencia se revisa manualmente.
+
 ### Cómo fluye la automatización
 
 1. Un Técnico/Administrador pulsa un botón (por ejemplo «Ejecutar orquestador»).
@@ -109,6 +113,7 @@ Pendientes conocidos: verificación de clave de host SSH desactivada y algoritmo
 - Docker y Docker Compose (en Windows: Docker Desktop con integración WSL, o Docker Engine dentro de WSL).
 - Acceso de red desde el contenedor a los equipos (SSH y SNMP).
 - Clona o descomprime el proyecto en el sistema de archivos de Linux/WSL (por ejemplo `~/`), **no** en `/mnt/c/…`.
+- En un servidor Linux, el usuario `www-data` del contenedor debe poder leer el proyecto (ver «Despliegue en un servidor Linux»).
 
 ### Pasos
 
@@ -123,6 +128,30 @@ docker compose logs -f db      # espera "ready for connections"
 ```
 
 Abre **http://localhost/documentador-red/** e inicia sesión con `INIT_ADMIN_USER` / `INIT_ADMIN_PASS`.
+
+### Despliegue en un servidor Linux
+
+El proyecto se monta dentro del contenedor, y Apache lo lee como `www-data`. Si la carpeta del proyecto no tiene permisos de lectura y de paso para «otros», Apache responde **403 Forbidden** (en el log: `AH00035 ... search permissions are missing on a component of the path`). Esto ocurre sobre todo cuando el proyecto está dentro de `/home/<usuario>`, que en Debian y Ubuntu recientes es privado.
+
+```bash
+namei -l ~/documentador-red/public     # muestra qué carpeta de la ruta bloquea el paso
+chmod o+x ~                            # permite atravesar (no listar) la carpeta personal
+chmod -R o+rX ~/documentador-red       # permite leer el proyecto
+chmod 600 ~/documentador-red/.env      # el .env guarda contraseñas: que no lo lea nadie más
+docker compose restart app
+```
+
+Alternativa sin abrir la carpeta personal: copiar el proyecto a una ruta neutra.
+
+```bash
+sudo mkdir -p /opt/netdocs
+sudo cp -a ~/documentador-red/. /opt/netdocs/
+sudo chmod -R o+rX /opt/netdocs
+sudo chmod 600 /opt/netdocs/.env
+cd /opt/netdocs && docker compose up -d --build
+```
+
+Después, abre `http://IP_DEL_SERVIDOR/documentador-red/` (con la barra final). Si los QR deben abrir desde móviles, define `APP_BASE_URL=http://IP_DEL_SERVIDOR` en el `.env`.
 
 ### Variables de entorno (`.env`)
 
@@ -182,8 +211,8 @@ Para ejecutar SQL: `docker compose exec db sh -c 'mysql -uroot -p"$MYSQL_ROOT_PA
 | Grupo | Tablas |
 |---|---|
 | Usuarios | `usuarios`, `roles` |
-| Documentación | `equipos`, `puertos`, `puertos_operativos`, `direcciones_ip`, `vlans`, `tabla_enrutamiento`, `topologia_enlaces` |
-| Monitoreo y auditoría | `historial_salud`, `auditoria_seguridad` |
+| Documentación (captura manual) | `equipos`, `puertos`, `vlans`, `direcciones_ip` |
+| Estado observado (automatización) | `puertos_operativos`, `tabla_enrutamiento`, `topologia_enlaces`, `historial_salud`, `auditoria_seguridad` |
 | Bitácoras | `logs_auditoria`, `logs_waf`, `login_intentos` |
 
 Borrar un equipo elimina en cascada sus puertos, enrutamiento, salud y auditoría; borrar una VLAN elimina sus IPs.
@@ -268,6 +297,10 @@ Notas:
 | Los QR no se dibujan | Falta la librería local: ejecuta `./scripts/vendor-js.sh`. |
 | Cuenta bloqueada al iniciar sesión | Se superó el límite de intentos; espera 15 minutos. |
 | Un Lector no puede crear/editar | Es el comportamiento esperado de ese rol. |
+| **403 Forbidden** al abrir la aplicación; en el log, `AH00035 ... search permissions are missing` | `www-data` no puede leer la carpeta del proyecto. Ver «Despliegue en un servidor Linux» (`chmod o+x ~` y `chmod -R o+rX`). Diagnóstico: `docker compose logs --tail=30 app \| grep -i "error\|denied"`. |
+| 403 y la página de error muestra «Apache/2.4.x (Debian) Server at…» | El contenedor usa una imagen vieja sin la configuración de Apache del proyecto. Ejecuta `docker compose up -d --build` y comprueba `docker compose exec app ls /etc/apache2/conf-enabled/ \| grep netdocs`. |
+| 403 o 404 al abrir `http://servidor/` | La aplicación vive en `/documentador-red/`; usa la URL completa con la barra final. |
+| `failed to solve: error getting credentials` al construir (WSL) | El ayudante de credenciales de Docker no responde. Quita la línea `"credsStore"` de `~/.docker/config.json` (haz copia antes) o deja `{}`; para imágenes públicas no hace falta iniciar sesión. |
 
 ### Actualizar una BD existente (sin borrar datos)
 
@@ -285,6 +318,7 @@ FLUSH PRIVILEGES;
 
 ## 5. Recomendaciones para producción
 
+- **Mantener PHP actualizado.** La imagen base es `php:8.2-apache` (Apache con `mod_php`). En octubre de 2026 se corrigieron dos vulnerabilidades críticas de ejecución remota (CVE-2026-109618 y CVE-2026-109619) en PHP 8.2.35, 8.3.36, 8.4.27 y 8.5.12. Reconstruye la imagen con `docker compose build --pull --no-cache app && docker compose up -d` y comprueba con `docker compose exec app php -v` que la versión sea 8.2.35 o superior. Repite este proceso periódicamente; PHP 8.2 se acerca al final de su soporte, por lo que conviene planear el salto a una rama más reciente.
 - Poner la aplicación detrás de un proxy inverso con **HTTPS** y activar `SESSION_COOKIE_SECURE=1`.
 - No exponer el puerto 80 a internet; limitar con firewall o `BIND_ADDR=127.0.0.1`.
 - Rotar las contraseñas SSH de los equipos y la comunidad SNMP; preferir SNMPv3.
