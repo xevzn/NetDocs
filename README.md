@@ -103,7 +103,9 @@ La documentación capturada a mano (`equipos`, `puertos`, `vlans`, `direcciones_
 - **Base de datos:** la app usa un usuario propio con permisos solo sobre `red_infraestructura`, no root.
 - **WAF** propio como capa adicional (no sustituye a las defensas anteriores).
 
-Pendientes conocidos: verificación de clave de host SSH desactivada y algoritmos antiguos habilitados para equipos legacy; derivación de la clave de la bóveda sin KDF; SNMP v2c.
+Pendientes conocidos: verificación de clave de host SSH desactivada y algoritmos antiguos habilitados para equipos legacy; derivación de la clave de la bóveda sin KDF; SNMP v2c; sin campo en la interfaz para capturar la comunidad SNMP de cada equipo (el playbook de aprovisionamiento se salta en silencio mientras falte).
+
+**Compatibilidad SSH con equipos antiguos:** Paramiko 5 (mayo de 2026) eliminó los algoritmos de intercambio de claves basados en SHA-1 (`diffie-hellman-group1-sha1` y similares), que es lo único que ofrecen varios equipos IOS antiguos usados en pruebas. El `Dockerfile` fija `paramiko>=3.5,<5`; si al reconstruir ves `Incompatible ssh peer (no acceptable kex algorithm)`, revisa que esa línea siga así y que `pip show paramiko` (dentro del contenedor) muestre una versión menor a 5.
 
 ---
 
@@ -138,6 +140,15 @@ namei -l ~/documentador-red/public     # muestra qué carpeta de la ruta bloquea
 chmod o+x ~                            # permite atravesar (no listar) la carpeta personal
 chmod -R o+rX ~/documentador-red       # permite leer el proyecto
 chmod 600 ~/documentador-red/.env      # el .env guarda contraseñas: que no lo lea nadie más
+docker compose restart app
+```
+
+Los scripts de Python también deben ser ejecutables, y Ansible necesita escribir en `automation/backups/` y `automation/ansible_project/` (log y resultados). Si al bajar el proyecto desde GitHub pierden esos permisos (suele pasar), corrige dentro del repositorio:
+
+```bash
+chmod +x automation/scripts/*.py
+mkdir -p automation/ansible_project/playbooks/outputs
+sudo chown -R 33:33 automation/backups automation/ansible_project   # 33 = www-data del contenedor
 docker compose restart app
 ```
 
