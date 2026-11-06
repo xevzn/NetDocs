@@ -1,0 +1,60 @@
+services:
+  # 1. El Súper-Contenedor (PHP + Apache + Python + Ansible)
+  app:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: netdocs_app
+    ports:
+      - "${BIND_ADDR:-0.0.0.0}:80:80"
+    volumes:
+      - ./:/var/www/html/documentador-red
+    environment:
+      - ANSIBLE_HOST_KEY_CHECKING=False
+      - TZ=America/Mexico_City
+      - INIT_ADMIN_USER=${INIT_ADMIN_USER:?Set INIT_ADMIN_USER in the environment}
+      - INIT_ADMIN_PASS=${INIT_ADMIN_PASS:?Set INIT_ADMIN_PASS in the environment (12+ characters)}
+      - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-}
+      - INIT_ADMIN_EMAIL=${INIT_ADMIN_EMAIL}
+      - VAULT_MASTER_KEY=${VAULT_MASTER_KEY:?Set VAULT_MASTER_KEY in the environment}
+      - APP_BASE_URL=${APP_BASE_URL:-}
+      - MYSQL_HOST=db
+      - MYSQL_USER=${MYSQL_USER:?Set MYSQL_USER in the environment}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in the environment}
+      - MYSQL_DATABASE=red_infraestructura
+    depends_on:
+      - db
+
+  # 2. Contenedor de Base de Datos MySQL
+  db:
+    image: mysql:8.0
+    container_name: netdocs_db
+    command: --default-authentication-plugin=mysql_native_password
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in the environment}
+      MYSQL_DATABASE: red_infraestructura
+      # Usuario de aplicación con permisos solo sobre red_infraestructura (no usar root)
+      MYSQL_USER: ${MYSQL_USER:?Set MYSQL_USER in the environment}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in the environment}
+      TZ: America/Mexico_City
+    volumes:
+      - db_data:/var/lib/mysql
+      # Se ejecuta solo la primera vez, con el volumen vacío
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  # 3. Administrador de BD (phpMyAdmin): solo si se pide con `--profile tools`, y solo en localhost
+  phpmyadmin:
+    image: phpmyadmin:5.2
+    container_name: netdocs_pma
+    profiles: ["tools"]
+    ports:
+      - "127.0.0.1:8081:80"
+    environment:
+      PMA_HOST: db
+      TZ: America/Mexico_City
+    depends_on:
+      - db
+
+volumes:
+  db_data:
