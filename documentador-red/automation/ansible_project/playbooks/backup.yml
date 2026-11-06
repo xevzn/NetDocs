@@ -15,7 +15,7 @@
       ansible.builtin.file:
         path: "{{ backup_root }}/{{ inventory_hostname }}"
         state: directory
-        mode: '0755'
+        mode: '0750'
       delegate_to: localhost
       vars:
         ansible_become: false
@@ -31,6 +31,7 @@
       ansible.builtin.copy:
         content: "{{ config_output.stdout[0] }}"
         dest: "{{ backup_root }}/{{ inventory_hostname }}/{{ inventory_hostname }}_{{ lookup('pipe', 'date +%Y-%m-%d_%H-%M-%S') }}.txt"
+        mode: '0640'
       delegate_to: localhost
       vars:
         ansible_become: false

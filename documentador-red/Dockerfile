@@ -6,7 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 # 3. Instalamos Python, dependencias del sistema y herramientas de red
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
     python3-venv \
@@ -33,21 +33,25 @@ RUN python3 -m venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 # 7. Instalamos TU MÚSCULO DE REDES (Incluyendo pysnmp para el monitor en vivo)
+# Versiones fijadas a un rango compatible: una actualización mayor sin aviso (p. ej.
+# Paramiko 5, que quitó los algoritmos SSH que necesitan los equipos legacy) ya nos
+# rompió un despliegue una vez; con el rango fijo, "docker compose build" nunca vuelve
+# a traer una versión mayor nueva sin que lo decidamos a propósito.
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir \
-    pandas \
-    netmiko \
-    paramiko \
-    ansible \
-    ansible-runner \
-    ansible-pylibssh \
-    textfsm \
-    ntc-templates \
-    napalm \
-    networkx \
-    pyyaml \
-    pysnmp \
-    pymysql
+    "pandas>=2,<3" \
+    "netmiko>=4,<5" \
+    "paramiko>=3.5,<5" \
+    "ansible>=9,<11" \
+    "ansible-runner>=2,<3" \
+    "ansible-pylibssh>=1,<2" \
+    "textfsm>=1,<2" \
+    "ntc-templates>=4,<5" \
+    "napalm>=5,<6" \
+    "networkx>=3,<4" \
+    "pyyaml>=6,<7" \
+    "pysnmp>=4,<5" \
+    "pymysql>=1,<2"
 
 # 8. Instalamos las colecciones de Cisco para Ansible
 RUN ansible-galaxy collection install cisco.ios

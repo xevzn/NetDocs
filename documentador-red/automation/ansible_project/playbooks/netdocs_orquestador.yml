@@ -7,7 +7,7 @@
       ansible.builtin.file:
         path: "/var/www/html/documentador-red/automation/backups"
         state: directory
-        mode: '0755'
+        mode: '0750'
 
 - name: 01. Aprovisionamiento SNMP y Respaldos de Red
   hosts: all
@@ -49,7 +49,7 @@
       ansible.builtin.file:
         path: "{{ backup_root }}/{{ inventory_hostname }}"
         state: directory
-        mode: '0755'
+        mode: '0750'
       delegate_to: localhost
       vars:
         ansible_become: false
@@ -65,6 +65,7 @@
       ansible.builtin.copy:
         content: "{{ run_cfg.stdout[0] }}"
         dest: "{{ backup_root }}/{{ inventory_hostname }}/{{ inventory_hostname }}_{{ lookup('pipe', 'date +%Y-%m-%d_%H-%M-%S') }}.txt"
+        mode: '0640'
       delegate_to: localhost
       vars:
         ansible_become: false
